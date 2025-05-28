@@ -1,9 +1,10 @@
-
-- name: Create user
+- name: Create User
   hosts: db_master, db_slave
   become: yes
+  vars:
+    mariadb_exporter_password: "exportpass"
   tasks:
-    - name: Create MySQL exporter user
+    - name: User
       community.mysql.mysql_user:
         login_user: root
         login_password: "{{ mariadb_root_password }}"
@@ -17,27 +18,26 @@
   hosts: all
   become: yes
   tasks:
-    - name: Create config dir
+    - name: Config dir
       file:
         path: /etc/prometheus
         state: directory
 
-    - name: Create config
+    - name: Create Config
       copy:
         content: |
           global:
             scrape_interval: 15s
-
           scrape_configs:
             - job_name: 'mariadb'
               static_configs:
                 - targets:
-                    - "mariadb-master:9104"
-                    - "mariadb-slave:9104"
+                    - "46.8.78.215:9104"
+                    - "95.182.96.156:9104"
         dest: /etc/prometheus/prometheus.yml
 
 - name: Deploy export
-  hosts: db_master,db_slave
+  hosts: db_master, db_slave
   become: yes
   tasks:
     - name: Run export
@@ -80,5 +80,54 @@
           - "3000:3000"
         volumes:
           - grafana_data:/var/lib/grafana
+          - ./14621.json:/tmp/14621.json
         networks:
           - name: backend
+
+    - name: Wait for Grafana
+      wait_for:
+        port: 3000
+        delay: 10
+        timeout: 60
+
+    - name: Config Prometheus for Grafana
+      uri:
+        url: "http://localhost:3000/api/datasources"
+        method: POST
+        body_format: json
+        headers:
+          Content-Type: "application/json"
+        body:
+          name: "Prometheus"
+          type: "prometheus"
+          url: "http://46.8.78.215:9090"
+          access: "proxy"
+          isDefault: true
+        user: "admin"
+        password: "admin"
+        force_basic_auth: yes
+        status_code: 200
+      register: datasource_result
+      retries: 5
+      delay: 10
+
+    - name: Import dash
+      uri:
+        url: "http://localhost:3000/api/dashboards/db"
+        method: POST
+        body_format: json
+        headers:
+          Content-Type: "application/json"
+        body:
+          dashboard: "{{ lookup('file', '14621.json') | from_json }}"
+          overwrite: true
+          folderId: 0
+        user: "admin"
+        password: "admin"
+        force_basic_auth: yes
+        status_code: 200
+      register: dashboard_result
+      retries: 5
+      delay: 10
+
+

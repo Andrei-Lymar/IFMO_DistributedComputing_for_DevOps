@@ -1,18 +1,48 @@
----
-- name: Home work 4
-  hosts: carrier
+
+- name: Remove monitoring stack
+  hosts: wordpress_server
+  become: yes
   tasks:
-    - name: Display Configuration Variables
-      ansible.builtin.debug:
-        msg:
-          - "wordpress: {{ is_wordpress }}" # True or False
-          - "wordpress_port: {{ wordpress_port }}" # 80 or 8080 or whatewer
-          - "wordpress_db_name: {{ wordpress_db_name }}" # WP database name
-          - "db1_host: {{ db1_host }}" # container name
-          - "db2_host: {{ db2_host }}" # container name
-          - "db3_host: {{ db3_host }}" # container name
-          - "db4_host: {{ db4_host }}" # container name
-          - "db5_host: {{ db5_host }}" # container name
-          - "db_pass: {{ db_pass }}" # root password for DBs
-          - "loadbalancer: {{ loadbalancer }}" # container name
-          - "monitoring_url: {{ monitoring_url }}" # monitoring url including port
+    # Остановка и удаление контейнеров
+    - name: Remove Grafana container
+      docker_container:
+        name: grafana
+        state: absent
+        force_kill: yes
+
+    - name: Remove Prometheus container
+      docker_container:
+        name: prometheus
+        state: absent
+        force_kill: yes
+
+    # Удаление Docker образов (опционально)
+    - name: Remove Grafana image
+      docker_image:
+        name: grafana/grafana:latest
+        state: absent
+
+    - name: Remove Prometheus image
+      docker_image:
+        name: prom/prometheus:latest
+        state: absent
+
+    # Удаление тома Grafana
+    - name: Remove grafana_data volume
+      docker_volume:
+        name: grafana_data
+        state: absent
+
+    # Очистка конфигурации Prometheus
+    - name: Remove Prometheus config directory
+      file:
+        path: /etc/prometheus
+        state: absent
+
+    # Удаление MySQL экспортеров (если нужно)
+    - name: Remove MySQL exporter containers
+      docker_container:
+        name: mysqld-exporter
+        state: absent
+        force_kill: yes
+      when: "'db_master' in group_names or 'db_slave' in group_names"
