@@ -32,8 +32,9 @@
             - job_name: 'mariadb'
               static_configs:
                 - targets:
-                    - "46.8.78.215:9104"
-                    - "95.182.96.156:9104"
+                  {% for host in groups['db_master'] + groups['db_slave'] %}
+                  - "{{ hostvars[host].inventory_hostname }}:9104"
+                  {% endfor %}
         dest: /etc/prometheus/prometheus.yml
 
 - name: Deploy export
@@ -100,7 +101,7 @@
         body:
           name: "Prometheus"
           type: "prometheus"
-          url: "http://46.8.78.215:9090"
+          url: "http://prometheus:9090"
           access: "proxy"
           isDefault: true
         user: "admin"
